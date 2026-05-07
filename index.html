@@ -1,1 +1,133 @@
-PLACEHOLDER_INDEX
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>🌌 AI Galaxy Explorer — by BU</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',sans-serif;color:#fff;}
+  #ui{position:fixed;top:14px;left:14px;z-index:10;background:rgba(10,10,30,.55);
+      backdrop-filter:blur(10px);padding:14px 18px;border-radius:14px;
+      border:1px solid rgba(255,255,255,.15);max-width:280px;font-size:13px;}
+  #ui h1{margin:0 0 6px 0;font-size:16px;background:linear-gradient(90deg,#7df9ff,#ff7df9);
+         -webkit-background-clip:text;color:transparent;}
+  #ui small{opacity:.7}
+  #ui label{display:block;margin-top:8px;font-size:11px;opacity:.8}
+  #ui input[type=range]{width:100%}
+  #info{position:fixed;bottom:14px;right:14px;z-index:10;background:rgba(10,10,30,.55);
+        backdrop-filter:blur(10px);padding:10px 14px;border-radius:12px;font-size:12px;
+        border:1px solid rgba(255,255,255,.15);}
+  a{color:#7df9ff}
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>🌌 AI Galaxy Explorer</h1>
+  <small>Built autonomously by <b>BU</b> · Browser-Use AI agent</small>
+  <label>Stars: <span id="cVal">25000</span></label>
+  <input id="count" type="range" min="2000" max="80000" step="1000" value="25000"/>
+  <label>Spiral arms: <span id="aVal">5</span></label>
+  <input id="arms" type="range" min="2" max="9" value="5"/>
+  <label>Spin: <span id="sVal">1.2</span></label>
+  <input id="spin" type="range" min="0" max="3" step="0.1" value="1.2"/>
+  <label>Color mix</label>
+  <input id="hue" type="range" min="0" max="360" value="220"/>
+</div>
+<div id="info">🖱 drag to orbit · scroll to zoom · ✨ auto-rotates</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000010, 0.0008);
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(0, 60, 140);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.4;
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.2, 0.6, 0.0));
+
+const bgGeom = new THREE.BufferGeometry();
+const bgPos = new Float32Array(3000*3);
+for(let i=0;i<3000;i++){
+  bgPos[i*3]=(Math.random()-.5)*1500;
+  bgPos[i*3+1]=(Math.random()-.5)*1500;
+  bgPos[i*3+2]=(Math.random()-.5)*1500;
+}
+bgGeom.setAttribute('position', new THREE.BufferAttribute(bgPos,3));
+scene.add(new THREE.Points(bgGeom, new THREE.PointsMaterial({color:0x99aaff,size:0.7})));
+
+let galaxy;
+function makeGalaxy(count, arms, spin, hueDeg){
+  if(galaxy){ galaxy.geometry.dispose(); galaxy.material.dispose(); scene.remove(galaxy); }
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count*3);
+  const col = new Float32Array(count*3);
+  const radius=80, branchAngle=Math.PI*2/arms;
+  const inner=new THREE.Color().setHSL(hueDeg/360,1,.6);
+  const outer=new THREE.Color().setHSL(((hueDeg+120)%360)/360,1,.55);
+  for(let i=0;i<count;i++){
+    const r=Math.pow(Math.random(),1.6)*radius;
+    const branch=(i%arms)*branchAngle;
+    const spinA=r*spin*0.05;
+    const rx=Math.pow(Math.random(),3)*(Math.random()<.5?1:-1)*r*0.15;
+    const ry=Math.pow(Math.random(),3)*(Math.random()<.5?1:-1)*r*0.05;
+    const rz=Math.pow(Math.random(),3)*(Math.random()<.5?1:-1)*r*0.15;
+    pos[i*3]  =Math.cos(branch+spinA)*r+rx;
+    pos[i*3+1]=ry;
+    pos[i*3+2]=Math.sin(branch+spinA)*r+rz;
+    const mix=inner.clone().lerp(outer,r/radius);
+    col[i*3]=mix.r; col[i*3+1]=mix.g; col[i*3+2]=mix.b;
+  }
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const mat=new THREE.PointsMaterial({size:0.5,sizeAttenuation:true,vertexColors:true,
+    blending:THREE.AdditiveBlending,depthWrite:false,transparent:true});
+  galaxy=new THREE.Points(geo,mat); scene.add(galaxy);
+}
+
+const $=id=>document.getElementById(id);
+function rebuild(){
+  $('cVal').textContent=$('count').value;
+  $('aVal').textContent=$('arms').value;
+  $('sVal').textContent=$('spin').value;
+  makeGalaxy(+$('count').value,+$('arms').value,+$('spin').value,+$('hue').value);
+}
+['count','arms','spin','hue'].forEach(id=>$(id).addEventListener('input',rebuild));
+rebuild();
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight);
+});
+
+(function loop(){
+  requestAnimationFrame(loop);
+  if(galaxy) galaxy.rotation.y+=0.0008;
+  controls.update();
+  composer.render();
+})();
+</script>
+</body>
+</html>
